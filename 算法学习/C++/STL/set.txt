@@ -1,0 +1,12 @@
+//用红黑树构建
+set：				有序不可重复
+
+multiset：			有序可重复
+multiset<int> mt;
+mt.upper_bound(val)	找比val大的最小的元素
+mt.lower_bound(val)	找比bal小的最大的元素
+
+//用哈希表构建
+unordered_set:		无序不可重复
+
+unordered_multiset 	无序可重复

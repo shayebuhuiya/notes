@@ -1,0 +1,30 @@
+heap(堆)不是STL中的容器组件，他只是对array或者vector中的元素以某种规则进行排序，堆算法才是heap的关键所在，下面介绍一些STL提供的堆泛型算法
+这里用vector<int> nums 来举例
+
+heap可以通过cmp来实现大根堆或者小根堆
+
+//max-heap(默认)
+bool cmp(void* a, void* b){
+	return a <= b;
+}
+
+//min-heap
+bool cmp(void* a, void* b){
+	return a > b;
+}
+
+1.push_heap(nums.begin(), nums.end(), cmp);
+
+2.pop_heap(nums.begin(), nums.end());
+nums.pop_back();
+//先将堆顶移到最后，然后将其移出容器
+
+3.sort_heap(nums.begin(), nums.end(), cmp);
+
+4.make_heap(nums.begin(), nums.end(), cmp);
+
+5.is_heap(nums.begin(),nums.end());
+//或者
+is_heap(nums.begin(), nums.end(), cmp);
+
+6.其他：heap 的所有元素都必须循序特别的排列规则，所以 heap 不提供遍历的功能，也不提供迭代器。

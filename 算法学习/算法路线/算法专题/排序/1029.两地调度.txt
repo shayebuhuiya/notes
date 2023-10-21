@@ -1,0 +1,12 @@
+对vector<vector<int>> costs  用vector中的特征排序
+
+
+sort(costs.begin(), costs.end(), [](vector<int>& a, vector<int>& b){return (a[1] - a[0]) >= (b[1] - b[0]);});
+
+注意和
+
+sort(costs.begin(), costs.end(), [&](vector<int> a, vector<int> b){return (a[1] - a[0]) >= (b[1] - b[0]);});
+
+的区别，这样写还要把vector再复制一遍，对时间和空间都有不小的影响，
+
+而第一条的写法只是把vector的地址传过去了。

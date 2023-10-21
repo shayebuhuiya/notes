@@ -1,0 +1,30 @@
+#include <numeric>
+
+//范围赋值iota
+int nums[10]
+std::iota(nums,nums+10,100);
+for(auto a: nums)
+cout<< num << endl;		//100,101,102,103,......,109
+
+//二分法查找大于目标值的第一个元素，可以用cmp函数来改变目标规则
+//注意，在first和last之间必须要保证所有元素都应当符合这个规则
+ForwardIterator upper_bound(ForwardIterator first, ForwardIterator last, const T& val, Compare comp);
+
+comp(int i, int j){        //表示i与j的一种规则
+	return i...j;
+}
+
+//根据规则计数
+count_if(nums.begin(), nums.end(), [&](auto num){return num == rule;});
+如果num和rule相等就加一，函数返回值为得到的计数结果
+
+//是否范围内全部元素满足指定规则
+all_of(s.cbegin(), s.cend(), [&](char ch) {return (flg >> (ch - 'a')) & 1;});
+//是否有元素符合规则
+any_of(s.cbegin(), s.cend(), [&](char ch) {return (flg >> (ch - 'a')) & 1;});
+//是否全部不符合规则
+none_of(s.cbegin(), s.cend(), [&](char ch){return (flg >> (ch - 'a')) & 1;});
+
+//根据规则累加
+//这里将allowed中的全部char位压缩到num里，num初值为0，也作为结果返回
+accumulate(allowed.cbegin(), allowed.cend(), 0, [](int num, char ch){return num | (1 << (ch - 'a')); });

@@ -1,0 +1,6 @@
+这里对数组要实现一个逻辑排序，使用下面的语句
+
+vector<int> index(n);
+vector<int> nums1(n);
+
+sort(index.begin(), index.end(), [&](int a, int b){return nums1[a] < nums1[b];});
