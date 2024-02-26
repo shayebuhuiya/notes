@@ -1059,6 +1059,8 @@ vptr和vtbl的作用就是使c++的虚函数继承变成一个动态的过程，
 
 # 内存管理
 
+## primitives
+
 ![image-20240204172219056](/../../图片/image-20240204172219056.png)
 
 研究层次在malloc层及以上。
@@ -1073,7 +1075,7 @@ vptr和vtbl的作用就是使c++的虚函数继承变成一个动态的过程，
 
 new/ malloc/ allocator调用方法。
 
-## new
+### new
 
 new做两个动作：
 
@@ -1092,7 +1094,7 @@ new做两个动作：
 
 这里的函数首先调用`malloc`尝试获取size大小的内存，如果失败了，就会尝试使用`_callnewh`函数去释放内存，然后再尝试获取内存。
 
-## delete
+### delete
 
 delete会执行两个动作：
 
@@ -1107,7 +1109,7 @@ delete会执行两个动作：
 
 `delete`直接调用`free`释放内存。
 
-## array new, array delete
+### array new, array delete
 
 ![image-20240204200417148](/../../图片/image-20240204200417148.png)
 
@@ -1127,7 +1129,7 @@ delete会执行两个动作：
 
 申请的时候cookie是有额外内存消耗的。
 
-## placement new
+### placement new
 
 ![image-20240204202552152](/../../图片/image-20240204202552152.png)
 
@@ -1139,7 +1141,7 @@ delete会执行两个动作：
 2. 转型
 3. 调用构造函数
 
-## 重载
+### 重载
 
 ![image-20240204203147405](/../../图片/image-20240204203147405.png)
 
@@ -1185,7 +1187,226 @@ delete会执行两个动作：
 
 对于`placement new`的重载，对应每个不同版本的`placement new`，应当有对应版本的`placement delete`，否则被视为放弃对于构造失败的处理（对象构造失败的时候，比如内存申请成功了，但是对象构造不完整等等，应当调用析构函数进行相应处理）。
 
+### micro for static allocator
 
+allocator的写法非常制式，所以可以用宏代替
+
+<img src="./../../图片/image-20240226103046700.png" alt="image-20240226103046700" style="zoom:67%;" />
+
+
+
+定义两个宏代替黄色部分
+
+<img src="./../../图片/image-20240226103137780.png" alt="image-20240226103137780" style="zoom:67%;" />
+
+外面的要包含类的名称：
+
+![image-20240226103349462](./../../图片/image-20240226103349462.png)
+
+### new handler
+
+可以使用`new (nothrow) Foo;`使编译器不抛出异常。
+
+抛出异常前也会调用可由client指定的handler，new handler可由以下形式设定：
+
+```c++
+typedef void(*new_handler)();
+new_handler set_new_handler(new_handler p) throw();
+```
+
+设计良好的new handler只有两种选择：
+
+* 让更多的memory可用
+* 调用`abort()`或`exit()`；
+
+<img src="./../../图片/image-20240226105023808.png" alt="image-20240226105023808" style="zoom:67%;" />
+
+
+
+这里会一直调用new_handler
+
+<img src="./../../图片/image-20240226105249516.png" alt="image-20240226105249516" style="zoom: 50%;" />
+
+补充：
+
+* abort：直接向标准错误流发送`abnormal program termination`，终止程序，其中不进行任何清理。
+* assert：检查expression是否为假，若为假，则向std::error打印错误信息并调用abort终止程序。
+* exit：向程序的父程序传递参数使得程序退出，会清除包括PCB在内的各种数据结构，然后结束当前进程。
+* try：找最近的匹配的catch，没找到就调用abort。
+
+<img src="./../../图片/image-20240226110940514.png" alt="image-20240226110940514" style="zoom:50%;" />
+
+调用abort后，强制中断了程序。
+
+### default, delete
+
+<img src="./../../图片/image-20240226111322810.png" alt="image-20240226111322810" style="zoom:50%;" />
+
+在c++中，拷贝构造，拷贝赋值函数，析构函数有默认版本，可以用default
+
+## allocator
+
+### allocate
+
+`::alloc`与`gnu_cxx::__pool_alloc`的区别
+
+G 2.9 std::alloc 运行模式：
+
+![image-20240226135949379](./../../图片/image-20240226135949379.png)
+
+free_list负责所有容器内存的分配，如果申请大小在负责区域内，则分配，否则转交给malloc处理。
+
+<img src="./../../图片/image-20240226140112638.png" alt="image-20240226140112638" style="zoom:50%;" />
+
+![image-20240226145156538](./../../图片/image-20240226145156538.png)
+
+容器的**内存分配**（free list）与**碎片处理**（若不足申请空间的大小，则直接丢给合适大小的位置）。
+
+对于某个申请空间挂载的位置：(n / 8) - 1位置。
+
+free list上要有余量(1~20个)，否则申请需要空间的两倍的空间的大小。
+
+<img src="./../../图片/image-20240226150247648.png" alt="image-20240226150247648" style="zoom:50%;" />
+
+当没有内存可用时，由于还有很多空位，所以alloc会往右找空置的一个位置，分配给用户。
+
+为什么是一个位置：不知道位置之间是否连续，但是一个位置内部肯定是连续的。
+
+<img src="./../../图片/image-20240226150549590.png" alt="image-20240226150549590" style="zoom:67%;" />
+
+当再次申请72时，只能从后面的10的位置上切一块出来。
+
+当申请空间不足，且申请位置的右边也没有位置时，分配就直接失败了。
+
+这整个过程为`chunk_allocate()`函数 
+
+<img src="./../../图片/image-20240226161800617.png" alt="image-20240226161800617" style="zoom:67%;" />
+
+变量写右边不容易出错
+
+<img src="./../../图片/image-20240226161830363.png" alt="image-20240226161830363" style="zoom: 67%;" />
+
+变量定义了不用容易出错
+
+先天缺陷：deallocator没有使用free或者delete。不归还内存。
+
+### pool allocator
+
+<img src="./../../图片/image-20240226163447904.png" alt="image-20240226163447904" style="zoom: 67%;" />
+
+使用pool_allocator
+
+<img src="./../../图片/image-20240226163529854.png" alt="image-20240226163529854" style="zoom:67%;" />
+
+使用allocator，差距非常巨大。
+
+## malloc/free
+
+<img src="./../../图片/image-20240226164712951.png" alt="image-20240226164712951" style="zoom:80%;" />
+
+c++运行的过程----`call stack`。
+
+sbh：small block heap
+
+### 区块申请
+
+![image-20240226170611060](./../../图片/image-20240226170611060.png)
+
+第一块内存，由`__ioinit()`申请。而`_malloc_crt`就是`malloc`。所有程序进来都会先申请256个字节。
+
+![image-20240226180107259](./../../图片/image-20240226180107259.png)
+
+在debug模式下，申请区域的两侧会有无人区，用于调试bug。
+
+![image-20240226184719430](./../../图片/image-20240226184719430.png)
+
+申请region与group
+
+一共有64个group，对应从16到1k的大小，而最后一个并非管理1k大小的块，他的大小为4k，只要是大于1k的块都由最后一个块管。
+
+所以在main结束以后，如果还有NORMAL_BLOCK（1），则说明有内存泄露。
+
+![image-20240226192743370](./../../图片/image-20240226192743370.png)
+
+
+
+![image-20240226192925726](./../../图片/image-20240226192925726.png)
+
+一开始一直是对已经有区块的部分进行内存分配，直到归还的时候，会将归还的部分还到适合大小的区块。
+
+![image-20240226193516413](./../../图片/image-20240226193516413.png)
+
+假设又有小区块申请，如申请24，就从最近的右边有区块的位置找（贪心策略，尽量维护区块连续性）：
+
+![image-20240226193826837](./../../图片/image-20240226193826837.png)
+
+35list被分配后变小，调整至24list。
+
+### 区块合并
+
+![image-20240226194614554](./../../图片/image-20240226194614554.png)
+
+利用上下cookie
+
+### free
+
+<img src="./../../图片/image-20240226195338510.png" alt="image-20240226195338510" style="zoom:50%;" />
+
+Header：夹砂法确定
+
+Group：（位置-头）/32
+
+free-list：看cookie
+
+
+
+设计多个Group是为了判断全回收，便于归还操作系统
+
+## loki::allocator
+
+
+
+### Chunk
+
+以array取代list，以index取代pointer
+
+能够以简单的方式判断chunk全回收，进而将内存归还给操作系统
+
+有Deferring（暂缓归还）能力
+
+### Fixed Allocator
+
+### Small Object Allocator
+
+可以分配大量小块不带cookie的内存块，使用者为容器，但本身也使用vector。
+
+## GNU C++
+
+**通用型：**
+
+__gnu_cxx::new_allocator
+
+__gnu_cxx::malloc_allocator
+
+直接调用new或者malloc
+
+**智能型：**
+
+__gnu_cxx::bitmap_allocator	使用bitmap追踪内存块
+
+__gnu_cxx::pool_allocator
+
+__gnu_cxx::\_\_mt_alloc	多线程allocator
+
+不需要cookie
+
+![image-20240226211811717](./../../图片/image-20240226211811717.png)
+
+容器速度测试的三个角度
+
+<img src="./../../图片/image-20240226212036010.png" alt="image-20240226212036010" style="zoom: 50%;" />
+
+另外两种智能allocator。
 
 
 
