@@ -1189,6 +1189,54 @@ delete会执行两个动作：
 
 对于`placement new`的重载，对应每个不同版本的`placement new`，应当有对应版本的`placement delete`，否则被视为放弃对于构造失败的处理（对象构造失败的时候，比如内存申请成功了，但是对象构造不完整等等，应当调用析构函数进行相应处理）。
 
+### 内存池
+
+![image-20240205130740320](/../../图片/image-20240205130740320.png)
+
+![image-20240205130802535](/../../图片/image-20240205130802535.png)
+
+申请一大块空间，将其作为类待使用的内存池，这种做法也被称为`per-class allocator`。
+
+这样可以去除cookie，节省空间。
+
+![image-20240205131027058](/../../图片/image-20240205131027058.png)
+
+申请一片空间，可以看到，使用内存池要比使用`global new/delete`要节省许多空间。
+
+![image-20240205131809173](/../../图片/image-20240205131809173.png)
+
+这里和上面那版的区别在于，这里使用了union，这种技巧被称为embedded pointer。这样的话，next的空间就可以被再利用了。
+
+![image-20240205135655110](/../../图片/image-20240205135655110.png)
+
+可惜没有还回去。
+
+### allocator
+
+在面向对象的过程中，要尽量减少全局的东西。
+
+而在自定义new和delete的过程中，给每个类都重新写一遍既麻烦又不好改。
+
+![image-20240205141653550](/../../图片/image-20240205141653550.png)
+
+所以可以定制一些分配器，并使用其分配内存。由于allocator是静态的，所以要在类的外面定义。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### micro for static allocator
 
 allocator的写法非常制式，所以可以用宏代替
@@ -1386,19 +1434,19 @@ free-list：看cookie
 
 **通用型：**
 
-__gnu_cxx::new_allocator
+`__gnu_cxx::new_allocator`
 
-__gnu_cxx::malloc_allocator
+`__gnu_cxx::malloc_allocator`
 
 直接调用new或者malloc
 
 **智能型：**
 
-__gnu_cxx::bitmap_allocator	使用bitmap追踪内存块
+`__gnu_cxx::bitmap_allocator`	使用bitmap追踪内存块
 
-__gnu_cxx::pool_allocator
+`__gnu_cxx::pool_allocator`
 
-__gnu_cxx::\_\_mt_alloc	多线程allocator
+`__gnu_cxx::__mt_alloc`	多线程allocator
 
 不需要cookie
 
@@ -1408,47 +1456,49 @@ __gnu_cxx::\_\_mt_alloc	多线程allocator
 
 <img src="./../../图片/image-20240226212036010.png" alt="image-20240226212036010" style="zoom: 50%;" />
 
-另外两种智能allocator。
-=======
-## 内存池
+另外两种智能allocator。都没啥用。
 
-![image-20240205130740320](/../../图片/image-20240205130740320.png)
+标准库的分配器的头文件在\<memory\>中
 
-![image-20240205130802535](/../../图片/image-20240205130802535.png)
+<img src="/../../图片/image-20240226230525510.png" alt="image-20240226230525510" style="zoom:67%;" />
 
-申请一大块空间，将其作为类待使用的内存池，这种做法也被称为`per-class allocator`。
+`__gnu_cxx::__pool_alloc`的用法
 
-这样可以去除cookie，节省空间。
+### bitmap_allocator
 
-![image-20240205131027058](/../../图片/image-20240205131027058.png)
+头文件</ext/bitmap_allocator.h>
 
-申请一片空间，可以看到，使用内存池要比使用`global new/delete`要节省许多空间。
+<img src="/../../图片/image-20240226230831001.png" alt="image-20240226230831001" style="zoom:67%;" />
 
-![image-20240205131809173](/../../图片/image-20240205131809173.png)
+只为一个客户服务
 
-这里和上面那版的区别在于，这里使用了union，这种技巧被称为embedded pointer。这样的话，next的空间就可以被再利用了。
+#### 分配
 
-![image-20240205135655110](/../../图片/image-20240205135655110.png)
+blocks, super-blocks, bitmap, mini-vector
 
-可惜没有还回去。
+super-blocks是由bitmap与blocks组成的整体，由mini-vector控制
 
-## allocator
+![image-20240226232104366](/../../图片/image-20240226232104366.png)
 
-在面向对象的过程中，要尽量减少全局的东西。
+如果第一个super-block用完了，则启动第二个super-block，长度为原来的两倍，并向mini-vector中添加元素。
 
-而在自定义new和delete的过程中，给每个类都重新写一遍既麻烦又不好改。
+![image-20240226232325760](/../../图片/image-20240226232325760.png)
 
-![image-20240205141653550](/../../图片/image-20240205141653550.png)
+且mini-vector成长（变长一倍），指针位置改变。
 
-所以可以定制一些分配器，并使用其分配内存。由于allocator是静态的，所以要在类的外面定义。
+<img src="/../../图片/image-20240226232649244.png" alt="image-20240226232649244" style="zoom: 67%;" />
 
+#### 回收
 
+再设置一个mini-vector，称为freelist，指向全回收的super-blocks
 
+![image-20240226233156720](/../../图片/image-20240226233156720.png)
 
+回收后会调用erase，直接将mini-vector中的元素删除。
 
+当free-list中有64个super-blocks的时候，若第65个进入，则检查这65个中哪个最大，将最大的直接用operator_delete释放。
 
-
-
+若全部block都回收了，又要分配，则从free-list找一个合适的。
 
 
 
