@@ -1500,7 +1500,15 @@ super-blocks是由bitmap与blocks组成的整体，由mini-vector控制
 
 若全部block都回收了，又要分配，则从free-list找一个合适的。
 
+## const
 
+![image-20240227202153511](./../../图片/image-20240227202153511.png)
+
+加const是必要的，保证const object可以使用。
+
+![image-20240227202642106](./../../图片/image-20240227202642106.png)
+
+标准库设计两个版本就是为了保证读写一致。所以 非const必须考虑Copy On Write行为。
 
 
 
